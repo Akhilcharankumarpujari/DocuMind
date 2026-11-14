@@ -1,0 +1,38 @@
+# ==============================================================================
+# DocuMind Backend .gitignore
+# ==============================================================================
+
+## .NET Core and Visual Studio
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+.idea/
+.vscode/
+
+## Build and Publishing Artifacts
+publish/
+[Aa]pp[Dd]ata/
+logs/
+*.log
+
+## Secrets and Local Environment
+.env
+.env.*
+!.env.example
+*.local.json
+appsettings.*.local.json
+
+## Test & Coverage Artifacts
+TestResults/
+[Tt]est[Rr]esults/
+*.trx
+coverage/
+
+## OS Generated Files
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,50 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 5 0 R 7 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>
+endobj
+4 0 obj
+<< /Length 243 >>
+stream
+BT /F1 12 Tf 50 750 Td (DocuMind Architecture Overview: DocuMind is an AI-powered PDF Document Analyzer and RAG-based chatbot. The primary vector database engine used by DocuMind is Qdrant vector database running on ports 6333 and 6334.) Tj ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>
+endobj
+6 0 obj
+<< /Length 261 >>
+stream
+BT /F1 12 Tf 50 750 Td (Persistence and Models: Relational metadata is stored in MySQL 8 using Entity Framework Core with Pomelo. The embedding model is Azure OpenAI text-embedding-3-small producing 1536-dimensional vectors. The chat LLM is gpt-4.1-mini.) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 8 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>
+endobj
+8 0 obj
+<< /Length 161 >>
+stream
+BT /F1 12 Tf 50 750 Td (Security and Compliance: DocuMind never leaks API keys. Grounded RAG ensures answers come strictly from retrieved document chunks.) Tj ET
+endstream
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000127 00000 n 
+0000000302 00000 n 
+0000000596 00000 n 
+0000000771 00000 n 
+0000001083 00000 n 
+0000001258 00000 n 
+trailer
+<< /Size 9 /Root 1 0 R >>
+startxref
+1470
+%%EOF
