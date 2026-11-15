@@ -217,20 +217,6 @@ DocuMind includes a comprehensive test suite covering domain entities, password 
 ```bash
 cd backend
 dotnet test DocuMind.sln --logger "console;verbosity=normal"
-```
-
----
-
-## ☁️ Cloud Deployment Roadmap (Microsoft Azure)
-
-DocuMind has completed its **Phase 8.1 Azure Cloud Deployment Readiness Audit** (Readiness Score: **82/100**).
-The recommended production architecture targets:
-- **Application Containers**: Azure Container Apps (utilizing 180,000 vCPU-seconds free per month).
-- **Relational Store**: Azure Database for MySQL Flexible Server (Burstable B1ms free tier).
-- **Document Storage**: Azure Blob Storage (Hot Tier, private container with backend-proxied streaming).
-- **Vector Database**: Qdrant Cloud Free Tier (1GB managed cluster).
-- **Secrets**: Azure Key Vault with User-Assigned Managed Identity.
-
 ---
 
 ## 👨‍💻 Author & Contact
