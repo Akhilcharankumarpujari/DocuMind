@@ -41,7 +41,8 @@ public class RagRetrievalServiceTests
     public async Task RetrieveContextAsync_ValidQuestion_ShouldReturnFilteredCitationsAndContext()
     {
         // Arrange
-        var doc = new Document("TestDoc.pdf", 1024, "C:\\test\\test.pdf");
+        var userId = Guid.NewGuid();
+        var doc = new Document("TestDoc.pdf", 1024, "C:\\test\\test.pdf", userId: userId);
         _dbContext.Documents.Add(doc);
         await _dbContext.SaveChangesAsync();
 
@@ -84,7 +85,7 @@ public class RagRetrievalServiceTests
             NullLogger<RagRetrievalService>.Instance);
 
         // Act
-        var result = await service.RetrieveContextAsync(doc.Id, "How does DocuMind work?", topK: 5);
+        var result = await service.RetrieveContextAsync(doc.Id, "How does DocuMind work?", userId, topK: 5);
 
         // Assert
         result.Should().NotBeNull();
@@ -107,7 +108,8 @@ public class RagRetrievalServiceTests
     public async Task RetrieveContextAsync_EmptySearchResults_ShouldReturnEmptyContext()
     {
         // Arrange
-        var doc = new Document("Empty.pdf", 512, "C:\\test\\empty.pdf");
+        var userId = Guid.NewGuid();
+        var doc = new Document("Empty.pdf", 512, "C:\\test\\empty.pdf", userId: userId);
         _dbContext.Documents.Add(doc);
         await _dbContext.SaveChangesAsync();
 
@@ -128,7 +130,7 @@ public class RagRetrievalServiceTests
             NullLogger<RagRetrievalService>.Instance);
 
         // Act
-        var result = await service.RetrieveContextAsync(doc.Id, "Unrelated question", topK: 5);
+        var result = await service.RetrieveContextAsync(doc.Id, "Unrelated question", userId, topK: 5);
 
         // Assert
         result.Should().NotBeNull();
@@ -150,7 +152,7 @@ public class RagRetrievalServiceTests
             NullLogger<RagRetrievalService>.Instance);
 
         // Act
-        var act = async () => await service.RetrieveContextAsync(missingId, "Hello");
+        var act = async () => await service.RetrieveContextAsync(missingId, "Hello", Guid.NewGuid());
 
         // Assert
         await act.Should().ThrowAsync<EntityNotFoundException>();
@@ -168,7 +170,7 @@ public class RagRetrievalServiceTests
             NullLogger<RagRetrievalService>.Instance);
 
         // Act
-        var act = async () => await service.RetrieveContextAsync(Guid.NewGuid(), "   ");
+        var act = async () => await service.RetrieveContextAsync(Guid.NewGuid(), "   ", Guid.NewGuid());
 
         // Assert
         await act.Should().ThrowAsync<ArgumentException>();

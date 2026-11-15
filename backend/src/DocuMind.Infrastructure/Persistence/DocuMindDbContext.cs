@@ -9,6 +9,8 @@ public class DocuMindDbContext : DbContext, IApplicationDbContext
 {
     private readonly IDateTimeProvider? _dateTimeProvider;
 
+    public DbSet<User> Users => Set<User>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Document> Documents => Set<Document>();
     public DbSet<DocumentChunk> DocumentChunks => Set<DocumentChunk>();
     public DbSet<ChatConversation> ChatConversations => Set<ChatConversation>();
@@ -55,6 +57,14 @@ public class DocuMindDbContext : DbContext, IApplicationDbContext
         }
 
         foreach (var entry in ChangeTracker.Entries<ChatMessage>())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                entry.Entity.CreatedAtUtc = now;
+            }
+        }
+
+        foreach (var entry in ChangeTracker.Entries<RefreshToken>())
         {
             if (entry.State == EntityState.Added)
             {

@@ -23,9 +23,16 @@ public static class DependencyInjection
         services.Configure<QdrantOptions>(configuration.GetSection(QdrantOptions.SectionName));
         services.Configure<AzureOpenAiOptions>(configuration.GetSection(AzureOpenAiOptions.SectionName));
         services.Configure<ChunkingOptions>(configuration.GetSection(ChunkingOptions.SectionName));
+        services.Configure<Argon2Options>(configuration.GetSection(Argon2Options.SectionName));
+        services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
 
-        // Core Infrastructure Services
+        // Core Infrastructure & Security Services
+        services.AddHttpContextAccessor();
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
+        services.AddSingleton<IPasswordHasher, Security.Argon2idPasswordHasher>();
+        services.AddSingleton<IJwtTokenService, Security.JwtTokenService>();
+        services.AddScoped<ICurrentUserService, Services.CurrentUserService>();
+        services.AddScoped<IAuthService, Services.AuthService>();
 
         // Phase 3 Ingestion & Vector Services
         services.AddSingleton<IPdfTextExtractor, PdfPigTextExtractor>();

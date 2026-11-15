@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { FileText, MessageSquare, Plus, Search, Settings, PanelLeftClose, FolderOpen, Sparkles, Trash2, Loader2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { FileText, MessageSquare, Plus, Search, Settings, PanelLeftClose, FolderOpen, Sparkles, Trash2, Loader2, LogOut } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 
 export default function Sidebar({
   documents,
@@ -10,7 +12,10 @@ export default function Sidebar({
   collapsed,
   onToggle
 }) {
+  const { user, logout } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
+
+  const userInitial = (user?.fullName || user?.email || 'U').charAt(0).toUpperCase()
 
   const filteredDocs = searchTerm.trim()
     ? documents.filter(d => d.name?.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -32,8 +37,16 @@ export default function Sidebar({
   return (
     <aside className={`sidebar ${collapsed ? 'sidebar--collapsed' : ''}`}>
       <div className="brand-row">
-        <div className="brand-mark"><FileText size={19} /></div>
-        {!collapsed && <div className="brand-name">Docu<span>Mind</span><small>AI DOCUMENT ASSISTANT</small></div>}
+        <Link to="/" title="Return to Landing Page" style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: 11 }}>
+          <div className="brand-mark">
+            <img
+              src="/documind-icon.png"
+              alt="DocuMind AI Logo"
+              className="brand-icon-img"
+            />
+          </div>
+          {!collapsed && <div className="brand-name">Docu<span>Mind</span><small>AI DOCUMENT ASSISTANT</small></div>}
+        </Link>
         <button className="icon-button sidebar-toggle" onClick={onToggle} aria-label="Toggle sidebar"><PanelLeftClose size={17} /></button>
       </div>
       <button className="new-chat-button" onClick={onUpload}><Plus size={17} />{!collapsed && 'Upload document'}</button>
@@ -101,8 +114,32 @@ export default function Sidebar({
 
       <div className="sidebar-bottom">
         <div className="plan-card"><div className="plan-icon"><Sparkles size={16}/></div>{!collapsed && <div><strong>DocuMind Plus</strong><small>Your workspace is ready</small></div>}</div>
-        <button className="nav-item"><Settings size={17}/>{!collapsed && 'Settings'}</button>
-        <div className="profile-row"><div className="avatar">M</div>{!collapsed && <div><strong>My Workspace</strong><small>Personal account</small></div>}</div>
+        <div className="profile-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <div className="avatar" title={user?.fullName || 'User'}>{userInitial}</div>
+            {!collapsed && (
+              <div style={{ overflow: 'hidden' }}>
+                <strong style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {user?.fullName || 'DocuMind User'}
+                </strong>
+                <small style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {user?.email || 'Authenticated'}
+                </small>
+              </div>
+            )}
+          </div>
+          {!collapsed && (
+            <button
+              type="button"
+              className="icon-button"
+              title="Sign Out"
+              onClick={logout}
+              style={{ color: '#B9AAA4', marginLeft: 'auto', flexShrink: 0 }}
+            >
+              <LogOut size={16} />
+            </button>
+          )}
+        </div>
       </div>
     </aside>
   )

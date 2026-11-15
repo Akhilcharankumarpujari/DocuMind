@@ -26,27 +26,29 @@ public class ConversationService : IConversationService
     public async Task<ChatConversation> GetOrCreateConversationAsync(
         Guid documentId,
         Guid? conversationId,
+        Guid userId,
         CancellationToken cancellationToken = default)
     {
-        // 1. Verify document exists
-        var documentExists = await _context.Documents.AnyAsync(d => d.Id == documentId, cancellationToken);
-        if (!documentExists)
+        // 1. Verify document exists and belongs to the authenticated user
+        var document = await _context.Documents.FirstOrDefaultAsync(d => d.Id == documentId && d.UserId == userId, cancellationToken);
+        if (document == null)
             throw new EntityNotFoundException(nameof(Document), documentId);
 
-        // 2. If conversationId is specified, fetch and validate document association
+        // 2. If conversationId is specified, fetch and validate document and user association
         if (conversationId.HasValue && conversationId.Value != Guid.Empty)
         {
             var existing = await _context.ChatConversations
+                .Include(c => c.Document)
                 .Include(c => c.Messages.OrderBy(m => m.CreatedAtUtc))
                 .FirstOrDefaultAsync(c => c.Id == conversationId.Value, cancellationToken);
 
             if (existing != null)
             {
-                if (existing.DocumentId != documentId)
+                if (existing.DocumentId != documentId || existing.Document?.UserId != userId)
                 {
-                    _logger.LogWarning("Access denied: Conversation {ConvId} belongs to Document {DocA}, not {DocB}",
-                        existing.Id, existing.DocumentId, documentId);
-                    throw new DomainException("Conversation does not belong to the specified document.");
+                    _logger.LogWarning("Access denied: Conversation {ConvId} does not belong to Document {DocId} or User {UserId}",
+                        existing.Id, documentId, userId);
+                    throw new DomainException("Conversation does not belong to the specified document or user.");
                 }
 
                 return existing;
@@ -58,16 +60,22 @@ public class ConversationService : IConversationService
         _context.ChatConversations.Add(newConversation);
         await _context.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Created new ChatConversation {ConversationId} for Document {DocumentId}",
-            newConversation.Id, documentId);
+        _logger.LogInformation("Created new ChatConversation {ConversationId} for Document {DocumentId} and User {UserId}",
+            newConversation.Id, documentId, userId);
 
         return newConversation;
     }
 
     public async Task<IReadOnlyList<ConversationDto>> GetConversationsByDocumentAsync(
         Guid documentId,
+        Guid userId,
         CancellationToken cancellationToken = default)
     {
+        // Verify document ownership
+        var isOwner = await _context.Documents.AnyAsync(d => d.Id == documentId && d.UserId == userId, cancellationToken);
+        if (!isOwner)
+            return Array.Empty<ConversationDto>();
+
         var conversations = await _context.ChatConversations
             .Where(c => c.DocumentId == documentId)
             .OrderByDescending(c => c.CreatedAtUtc)
@@ -79,19 +87,29 @@ public class ConversationService : IConversationService
 
     public async Task<ConversationDto?> GetConversationByIdAsync(
         Guid conversationId,
+        Guid userId,
         CancellationToken cancellationToken = default)
     {
         var conversation = await _context.ChatConversations
+            .Include(c => c.Document)
             .Include(c => c.Messages.OrderBy(m => m.CreatedAtUtc))
-            .FirstOrDefaultAsync(c => c.Id == conversationId, cancellationToken);
+            .FirstOrDefaultAsync(c => c.Id == conversationId && c.Document != null && c.Document.UserId == userId, cancellationToken);
 
         return conversation == null ? null : MapToDto(conversation);
     }
 
     public async Task<IReadOnlyList<ChatMessageDto>> GetMessagesAsync(
         Guid conversationId,
+        Guid userId,
         CancellationToken cancellationToken = default)
     {
+        var conversationExists = await _context.ChatConversations
+            .Include(c => c.Document)
+            .AnyAsync(c => c.Id == conversationId && c.Document != null && c.Document.UserId == userId, cancellationToken);
+
+        if (!conversationExists)
+            throw new EntityNotFoundException(nameof(ChatConversation), conversationId);
+
         var messages = await _context.ChatMessages
             .Where(m => m.ConversationId == conversationId)
             .OrderBy(m => m.CreatedAtUtc)

@@ -1,4 +1,5 @@
 using DocuMind.Application.Common.Models;
+using DocuMind.Domain.Entities;
 using Azure.AI.OpenAI;
 using DocuMind.Infrastructure.Ai;
 using DocuMind.Infrastructure.Configuration;
@@ -371,8 +372,13 @@ public class LiveIntegrationTests
         var pdfBytes = builder.Build();
         using var pdfStream = new MemoryStream(pdfBytes);
 
-        // 3. Upload & Ingest real PDF
-        var uploadedDoc = await documentService.UploadDocumentAsync(pdfStream, "DocuMind_Spec.pdf", pdfBytes.Length, "application/pdf");
+        // 3. Create test user and upload & ingest real PDF
+        var testUser = new User("Integration Test User", $"integration_{Guid.NewGuid():N}@documind.test", "dummyhash");
+        dbContext.Users.Add(testUser);
+        await dbContext.SaveChangesAsync();
+        var testUserId = testUser.Id;
+
+        var uploadedDoc = await documentService.UploadDocumentAsync(pdfStream, "DocuMind_Spec.pdf", pdfBytes.Length, "application/pdf", testUserId);
         uploadedDoc.Should().NotBeNull();
         var docId = Guid.Parse(uploadedDoc.Id);
 
@@ -385,7 +391,7 @@ public class LiveIntegrationTests
             dbDoc.PageCount.Should().Be(2);
 
             // 4. Test RAG Retrieval directly
-            var retrievalResult = await ragService.RetrieveContextAsync(docId, "What is the primary vector database engine?");
+            var retrievalResult = await ragService.RetrieveContextAsync(docId, "What is the primary vector database engine?", testUserId);
             retrievalResult.HasContext.Should().BeTrue();
             retrievalResult.Citations.Should().NotBeEmpty();
             retrievalResult.Citations[0].Page.Should().Be(1);
@@ -393,7 +399,7 @@ public class LiveIntegrationTests
 
             // 5. Test Live Streaming Chat (SSE)
             var sseEvents = new List<SseStreamEvent>();
-            await foreach (var evt in chatService.StreamQuestionAsync(docId, "What is the primary vector database engine used by DocuMind?"))
+            await foreach (var evt in chatService.StreamQuestionAsync(docId, "What is the primary vector database engine used by DocuMind?", testUserId))
             {
                 sseEvents.Add(evt);
             }
@@ -411,13 +417,13 @@ public class LiveIntegrationTests
             sseEvents.Last().Type.Should().Be("done");
 
             // 6. Test Out-of-Context Question (Grounded refusal)
-            var refusalResponse = await chatService.AskQuestionAsync(docId, "What is the secret recipe for Coca-Cola?");
+            var refusalResponse = await chatService.AskQuestionAsync(docId, "What is the secret recipe for Coca-Cola?", testUserId);
             refusalResponse.Answer.Trim().Should().Be("I couldn't find that information in this document.");
 
             // 7. Verify Conversation Persistence
-            var convs = await conversationService.GetConversationsByDocumentAsync(docId);
+            var convs = await conversationService.GetConversationsByDocumentAsync(docId, testUserId);
             convs.Should().NotBeEmpty();
-            var messages = await conversationService.GetMessagesAsync(convs[0].Id);
+            var messages = await conversationService.GetMessagesAsync(convs[0].Id, testUserId);
             messages.Should().NotBeEmpty();
             messages.Any(m => m.Role == "user").Should().BeTrue();
             messages.Any(m => m.Role == "assistant").Should().BeTrue();
@@ -425,7 +431,7 @@ public class LiveIntegrationTests
         finally
         {
             // 8. Clean up: Delete test document and storage
-            await documentService.DeleteDocumentAsync(docId);
+            await documentService.DeleteDocumentAsync(docId, testUserId);
 
             if (Directory.Exists(tempStorageDir))
             {

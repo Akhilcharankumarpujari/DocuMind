@@ -1,8 +1,13 @@
+using System.Text;
+using System.Threading.RateLimiting;
 using DocuMind.Application;
 using DocuMind.Infrastructure;
 using DocuMind.WebApi.Extensions;
 using DocuMind.WebApi.Middleware;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Serilog;
 
@@ -21,17 +26,67 @@ builder.ConfigureSerilog();
 
 try
 {
-    Log.Information("Starting DocuMind.WebApi host...");
+    Log.Information("Starting DocuMind.WebApi host with enterprise security...");
 
     // Add Services
     builder.Services.AddDocuMindCors();
     builder.Services.AddApplicationServices();
     builder.Services.AddInfrastructureServices(builder.Configuration);
 
+    // Rate Limiting
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        options.AddFixedWindowLimiter("auth-policy", opt =>
+        {
+            opt.PermitLimit = 15;
+            opt.Window = TimeSpan.FromMinutes(1);
+            opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+            opt.QueueLimit = 2;
+        });
+    });
+
+    // JWT Bearer Authentication
+    var jwtSecret = builder.Configuration["Jwt:SecretKey"]
+        ?? builder.Configuration["JWT_SECRET"]
+        ?? "DocuMind-UltraSecure-JwtTokenSigningKey-2026-Enterprise!";
+
+    var jwtIssuer = builder.Configuration["Jwt:Issuer"]
+        ?? builder.Configuration["JWT_ISSUER"]
+        ?? "DocuMind.WebApi";
+
+    var jwtAudience = builder.Configuration["Jwt:Audience"]
+        ?? builder.Configuration["JWT_AUDIENCE"]
+        ?? "DocuMind.Client";
+
+    builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    })
+    .AddJwtBearer(options =>
+    {
+        options.RequireHttpsMetadata = false; // Allow local HTTP development
+        options.SaveToken = true;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = jwtIssuer,
+            ValidateAudience = true,
+            ValidAudience = jwtAudience,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromSeconds(5)
+        };
+    });
+
+    builder.Services.AddAuthorization();
+
     builder.Services.AddControllers();
     builder.Services.AddHealthChecks();
 
-    // Configure Swagger / OpenAPI
+    // Configure Swagger / OpenAPI with JWT Authorization Support
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen(options =>
     {
@@ -39,7 +94,32 @@ try
         {
             Title = "DocuMind API",
             Version = "v1",
-            Description = "AI-Powered PDF Document Analyzer and RAG Chatbot Backend API"
+            Description = "AI-Powered PDF Document Analyzer and RAG Chatbot Backend API with Multi-User Authentication"
+        });
+
+        options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+        {
+            Name = "Authorization",
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            In = ParameterLocation.Header,
+            Description = "Enter your JWT Bearer token: e.g. Bearer {your token}"
+        });
+
+        options.AddSecurityRequirement(new OpenApiSecurityRequirement
+        {
+            {
+                new OpenApiSecurityScheme
+                {
+                    Reference = new OpenApiReference
+                    {
+                        Type = ReferenceType.SecurityScheme,
+                        Id = "Bearer"
+                    }
+                },
+                Array.Empty<string>()
+            }
         });
     });
 
@@ -60,12 +140,15 @@ try
 
     app.UseRouting();
     app.UseCors(CorsExtensions.PolicyName);
+    app.UseRateLimiter();
+    app.UseAuthentication();
+    app.UseAuthorization();
 
     // Endpoints
     app.MapControllers();
     app.MapHealthChecks("/health");
 
-    // Automatically apply EF Core database migrations on startup
+    // Automatically apply EF Core database migrations on startup and safely preserve legacy documents
     using (var scope = app.Services.CreateScope())
     {
         try
@@ -74,6 +157,34 @@ try
             Log.Information("Checking and applying pending database migrations...");
             dbContext.Database.Migrate();
             Log.Information("Database schema is up to date.");
+
+            // Safe migration strategy: Assign unassigned legacy documents to designated administrator
+            var unownedDocs = dbContext.Documents.Where(d => d.UserId == null).ToList();
+            if (unownedDocs.Count > 0)
+            {
+                Log.Information("Found {Count} legacy documents without owner. Ensuring designated migration admin user exists...", unownedDocs.Count);
+                var adminEmail = Environment.GetEnvironmentVariable("MIGRATION_ADMIN_EMAIL") ?? "admin@documind.ai";
+                var normalizedAdminEmail = adminEmail.Trim().ToUpperInvariant();
+
+                var adminUser = dbContext.Users.FirstOrDefault(u => u.NormalizedEmail == normalizedAdminEmail);
+                if (adminUser == null)
+                {
+                    var passwordHasher = scope.ServiceProvider.GetRequiredService<DocuMind.Application.Common.Interfaces.IPasswordHasher>();
+                    var adminPassword = Environment.GetEnvironmentVariable("MIGRATION_ADMIN_PASSWORD") ?? "Admin@DocuMind2026!";
+                    var adminPasswordHash = passwordHasher.HashPassword(adminPassword);
+                    adminUser = new DocuMind.Domain.Entities.User("DocuMind Administrator", adminEmail, adminPasswordHash);
+                    dbContext.Users.Add(adminUser);
+                    dbContext.SaveChanges();
+                    Log.Information("Designated migration administrator {AdminEmail} created successfully.", adminEmail);
+                }
+
+                foreach (var doc in unownedDocs)
+                {
+                    doc.UserId = adminUser.Id;
+                }
+                dbContext.SaveChanges();
+                Log.Information("Assigned {Count} legacy documents to designated administrator {AdminEmail}.", unownedDocs.Count, adminEmail);
+            }
         }
         catch (Exception ex)
         {
@@ -161,6 +272,31 @@ static Dictionary<string, string?> LoadDotEnv()
                 {
                     config["AzureOpenAi:EmbeddingDeploymentName"] = val;
                     Environment.SetEnvironmentVariable("AzureOpenAi__EmbeddingDeploymentName", val);
+                }
+                else if (key == "JWT_SECRET")
+                {
+                    config["Jwt:SecretKey"] = val;
+                    Environment.SetEnvironmentVariable("Jwt__SecretKey", val);
+                }
+                else if (key == "JWT_ISSUER")
+                {
+                    config["Jwt:Issuer"] = val;
+                    Environment.SetEnvironmentVariable("Jwt__Issuer", val);
+                }
+                else if (key == "JWT_AUDIENCE")
+                {
+                    config["Jwt:Audience"] = val;
+                    Environment.SetEnvironmentVariable("Jwt__Audience", val);
+                }
+                else if (key == "JWT_ACCESS_TOKEN_MINUTES")
+                {
+                    config["Jwt:AccessTokenExpirationMinutes"] = val;
+                    Environment.SetEnvironmentVariable("Jwt__AccessTokenExpirationMinutes", val);
+                }
+                else if (key == "JWT_REFRESH_TOKEN_DAYS")
+                {
+                    config["Jwt:RefreshTokenExpirationDays"] = val;
+                    Environment.SetEnvironmentVariable("Jwt__RefreshTokenExpirationDays", val);
                 }
             }
         }

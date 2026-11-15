@@ -8,6 +8,8 @@ namespace DocuMind.Application.Common.Interfaces;
 /// </summary>
 public interface IApplicationDbContext
 {
+    DbSet<User> Users { get; }
+    DbSet<RefreshToken> RefreshTokens { get; }
     DbSet<Document> Documents { get; }
     DbSet<DocumentChunk> DocumentChunks { get; }
     DbSet<ChatConversation> ChatConversations { get; }

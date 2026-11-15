@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Bot, Send, Sparkles, Copy, ThumbsUp, ThumbsDown, FileText, RotateCcw, AlertCircle, BookOpen } from 'lucide-react'
+import { Bot, Send, Sparkles, Copy, ThumbsUp, ThumbsDown, FileText, RotateCcw, AlertCircle, BookOpen, ChevronDown } from 'lucide-react'
 import { starterMessages } from '../../data/mockData'
 import { streamQuestion, getDocumentConversations, getConversationMessages } from '../../services/chatService'
 
@@ -9,13 +9,37 @@ export default function ChatPanel({ document, actionPrompt, onClearActionPrompt,
   const [messages, setMessages] = useState(starterMessages)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [isAtBottom, setIsAtBottom] = useState(true)
+
   const endRef = useRef(null)
+  const messagesAreaRef = useRef(null)
+  const isAtBottomRef = useRef(true)
   const abortControllerRef = useRef(null)
 
-  // Scroll to bottom on new message / token update
+  // Track user scroll position in the conversation messages area
+  const handleScroll = (e) => {
+    const el = e.currentTarget
+    // If user is within 85px of the bottom, treat them as viewing the latest messages
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 85
+    if (isAtBottomRef.current !== atBottom) {
+      isAtBottomRef.current = atBottom
+      setIsAtBottom(atBottom)
+    }
+  }
+
+  // Scroll to bottom only if user was already at the bottom (ChatGPT-style)
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (isAtBottomRef.current) {
+      endRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [messages, loading])
+
+  // Scroll down to the latest message explicitly
+  const scrollToLatest = () => {
+    isAtBottomRef.current = true
+    setIsAtBottom(true)
+    endRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
 
   // Load conversation history when active document changes
   useEffect(() => {
@@ -44,6 +68,8 @@ export default function ChatPanel({ document, actionPrompt, onClearActionPrompt,
               sources: m.sources || []
             }))
             setMessages(mapped)
+            isAtBottomRef.current = true
+            setIsAtBottom(true)
             return
           }
         }
@@ -87,12 +113,14 @@ export default function ChatPanel({ document, actionPrompt, onClearActionPrompt,
         }
       ])
       setInput('')
+      scrollToLatest()
       return
     }
 
     setInput('')
     setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'user', content: question }])
     setLoading(true)
+    scrollToLatest()
 
     const assistantMsgId = crypto.randomUUID()
     setMessages(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: '', sources: [] }])
@@ -144,6 +172,7 @@ export default function ChatPanel({ document, actionPrompt, onClearActionPrompt,
     abortControllerRef.current?.abort()
     setLoading(false)
     setMessages(starterMessages)
+    scrollToLatest()
   }
 
   return (
@@ -166,7 +195,8 @@ export default function ChatPanel({ document, actionPrompt, onClearActionPrompt,
         </span>
       </div>
 
-      <div className="messages-area">
+      {/* INDEPENDENT SCROLL CONTAINER FOR MESSAGES */}
+      <div className="messages-area" ref={messagesAreaRef} onScroll={handleScroll}>
         {messages.map(message => (
           <article key={message.id} className={`message ${message.role}`}>
             {message.role === 'assistant' && (
@@ -221,6 +251,19 @@ export default function ChatPanel({ document, actionPrompt, onClearActionPrompt,
         <div ref={endRef}/>
       </div>
 
+      {/* Floating Scroll To Bottom Button when reading older messages */}
+      {!isAtBottom && messages.length > 2 && (
+        <button
+          type="button"
+          className="scroll-bottom-btn"
+          onClick={scrollToLatest}
+          title="Scroll to latest message"
+          aria-label="Scroll to latest message"
+        >
+          <ChevronDown size={16}/>
+        </button>
+      )}
+
       {!loading && messages.length <= 1 && (
         <div className="suggestion-area">
           <span>TRY ASKING</span>
@@ -230,6 +273,7 @@ export default function ChatPanel({ document, actionPrompt, onClearActionPrompt,
         </div>
       )}
 
+      {/* Fixed Composer Form */}
       <div className="composer-wrap">
         <div className="composer">
           <textarea

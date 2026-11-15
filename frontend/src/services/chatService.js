@@ -1,4 +1,4 @@
-import { API_BASE_URL } from './apiClient'
+import { authenticatedFetch, apiRequest } from './apiClient'
 
 // Uses fetch streaming because the chat endpoint accepts a POST body.
 // Backend SSE contract sends:
@@ -6,7 +6,7 @@ import { API_BASE_URL } from './apiClient'
 // data: {"type":"token","content":"..."}
 // data: {"type":"done","answer":"..."}
 export async function streamQuestion(documentId, question, onToken, onSources, onDone, signal) {
-  const response = await fetch(`${API_BASE_URL}/api/documents/${documentId}/ask/stream`, {
+  const response = await authenticatedFetch(`/api/documents/${documentId}/ask/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
     body: JSON.stringify({ question }),
@@ -58,35 +58,35 @@ export async function streamQuestion(documentId, question, onToken, onSources, o
         if (payload.type === 'error') {
           throw new Error(payload.error || 'Streaming error occurred.')
         }
-      } catch (err) {
-        if (err.message && err.message.includes('Streaming error')) throw err
-        // Ignore parsing errors for heartbeats or non-JSON comments
+      } catch (parseErr) {
+        if (parseErr.message && !parseErr.message.includes('JSON')) {
+          throw parseErr
+        }
       }
     }
   }
 }
 
 export async function askQuestion(documentId, question) {
-  const response = await fetch(`${API_BASE_URL}/api/documents/${documentId}/ask`, {
+  return apiRequest(`/api/documents/${documentId}/ask`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ question }),
   })
-  if (!response.ok) {
-    const text = await response.text().catch(() => 'Request failed')
-    throw new Error(text)
-  }
-  return response.json()
 }
 
 export async function getDocumentConversations(documentId) {
-  const response = await fetch(`${API_BASE_URL}/api/documents/${documentId}/conversations`)
-  if (!response.ok) return []
-  return response.json()
+  try {
+    return await apiRequest(`/api/documents/${documentId}/conversations`)
+  } catch {
+    return []
+  }
 }
 
 export async function getConversationMessages(conversationId) {
-  const response = await fetch(`${API_BASE_URL}/api/conversations/${conversationId}/messages`)
-  if (!response.ok) return []
-  return response.json()
+  try {
+    return await apiRequest(`/api/conversations/${conversationId}/messages`)
+  } catch {
+    return []
+  }
 }

@@ -22,6 +22,9 @@ public class Document : BaseEntity, IAuditableEntity
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAtUtc { get; set; }
 
+    public Guid? UserId { get; set; }
+    public User? User { get; set; }
+
     public ICollection<DocumentChunk> Chunks { get; set; } = new List<DocumentChunk>();
     public ICollection<ChatConversation> Conversations { get; set; } = new List<ChatConversation>();
 
@@ -29,7 +32,7 @@ public class Document : BaseEntity, IAuditableEntity
     {
     }
 
-    public Document(string fileName, long fileSizeBytes, string storagePath, string contentType = "application/pdf", string? fileHash = null)
+    public Document(string fileName, long fileSizeBytes, string storagePath, string contentType = "application/pdf", string? fileHash = null, Guid? userId = null)
     {
         if (string.IsNullOrWhiteSpace(fileName))
             throw new ArgumentException("File name cannot be empty.", nameof(fileName));
@@ -48,6 +51,7 @@ public class Document : BaseEntity, IAuditableEntity
         StoragePath = storagePath;
         ContentType = string.IsNullOrWhiteSpace(contentType) ? "application/pdf" : contentType;
         FileHash = fileHash;
+        UserId = userId;
         Status = DocumentStatus.Pending;
         CreatedAtUtc = DateTime.UtcNow;
     }

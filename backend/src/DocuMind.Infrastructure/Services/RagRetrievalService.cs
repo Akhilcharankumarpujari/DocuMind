@@ -38,19 +38,20 @@ public class RagRetrievalService : IRagRetrievalService
     public async Task<RagRetrievalResult> RetrieveContextAsync(
         Guid documentId,
         string question,
+        Guid userId,
         int topK = 5,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(question))
             throw new ArgumentException("Question cannot be empty.", nameof(question));
 
-        // 1. Verify document exists in MySQL
-        var document = await _dbContext.Documents.FirstOrDefaultAsync(d => d.Id == documentId, cancellationToken);
+        // 1. Verify document exists in MySQL and belongs to the authenticated user
+        var document = await _dbContext.Documents.FirstOrDefaultAsync(d => d.Id == documentId && d.UserId == userId, cancellationToken);
         if (document == null)
             throw new EntityNotFoundException(nameof(Document), documentId);
 
-        _logger.LogInformation("Initiating RAG retrieval for Document {DocumentId} ('{FileName}'). Question: '{Question}', TopK: {TopK}",
-            documentId, document.FileName, question, topK);
+        _logger.LogInformation("Initiating RAG retrieval for Document {DocumentId} ('{FileName}') owned by User {UserId}. Question: '{Question}', TopK: {TopK}",
+            documentId, document.FileName, userId, question, topK);
 
         // 2. Generate embedding for user question
         var questionEmbedding = await _embeddingService.GenerateEmbeddingAsync(question, cancellationToken);

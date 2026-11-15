@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { FileText, MessageSquare, FolderOpen } from 'lucide-react'
 import { Sidebar } from '../components/index.js'
 import Header from '../components/Header/Header.jsx'
 import PDFViewer from '../components/PDFViewer/PDFViewer.jsx'
@@ -9,6 +10,7 @@ export default function Dashboard() {
   const [documents, setDocuments] = useState([])
   const [activeDocument, setActiveDocument] = useState(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [mobileTab, setMobileTab] = useState('chat') // 'pdf' | 'chat'
   const [notice, setNotice] = useState('')
   const [targetPage, setTargetPage] = useState(1)
   const [actionPrompt, setActionPrompt] = useState('')
@@ -103,6 +105,7 @@ export default function Dashboard() {
       setDocuments(prev => [docWithFile, ...prev.filter(d => d.id !== createdDoc.id)])
       setActiveDocument(docWithFile)
       setTargetPage(1)
+      setMobileTab('pdf')
 
       if (createdDoc.status === 'Ready') {
         setNotice(`"${createdDoc.name}" is ready! You can now ask questions about it.`)
@@ -143,6 +146,8 @@ export default function Dashboard() {
       return
     }
 
+    setMobileTab('chat')
+
     switch (action) {
       case 'summary':
         setActionPrompt('Summarize this document concisely.')
@@ -164,7 +169,7 @@ export default function Dashboard() {
     : null
 
   return (
-    <main className={`app-shell ${sidebarCollapsed ? 'is-collapsed' : ''}`}>
+    <main className={`app-shell ${sidebarCollapsed ? 'is-collapsed' : ''} show-${mobileTab}`}>
       <input
         ref={fileInput}
         className="visually-hidden"
@@ -172,12 +177,50 @@ export default function Dashboard() {
         accept="application/pdf,.pdf"
         onChange={handleFile}
       />
+
+      {/* Mobile-only Segmented 3-Panel Switcher */}
+      <div className="mobile-panel-switcher" role="tablist" aria-label="Workspace view options">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mobileTab === 'docs'}
+          className={`mobile-switch-btn ${mobileTab === 'docs' ? 'active' : ''}`}
+          onClick={() => setMobileTab('docs')}
+        >
+          <FolderOpen size={14} />
+          <span>Documents ({documents.length})</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mobileTab === 'pdf'}
+          className={`mobile-switch-btn ${mobileTab === 'pdf' ? 'active' : ''}`}
+          onClick={() => setMobileTab('pdf')}
+        >
+          <FileText size={14} />
+          <span>PDF Viewer</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mobileTab === 'chat'}
+          className={`mobile-switch-btn ${mobileTab === 'chat' ? 'active' : ''}`}
+          onClick={() => setMobileTab('chat')}
+        >
+          <MessageSquare size={14} />
+          <span>AI Assistant</span>
+        </button>
+      </div>
+
       <Sidebar
         documents={documents}
         activeDocument={activeDocument}
         onSelectDocument={(doc) => {
           setActiveDocument(doc)
           setTargetPage(1)
+          if (window.innerWidth <= 820) {
+            setMobileTab('pdf')
+          }
         }}
         onUpload={chooseFile}
         onDeleteDocument={handleDeleteDocument}
@@ -189,10 +232,14 @@ export default function Dashboard() {
           document={activeDocument}
           onUpload={chooseFile}
           onAction={handleAction}
+          onDelete={handleDeleteDocument}
         />
-        <div className="workspace-grid">
+
+        {/* Independent Multi-Panel Workspace Grid */}
+        <div className={`workspace-grid show-${mobileTab}`}>
           <PDFViewer
-            file={pdfFileProp}
+            document={activeDocument}
+            file={activeDocument?.file}
             onUpload={chooseFile}
             targetPage={targetPage}
           />
@@ -200,7 +247,10 @@ export default function Dashboard() {
             document={activeDocument}
             actionPrompt={actionPrompt}
             onClearActionPrompt={() => setActionPrompt('')}
-            onCitationClick={(page) => setTargetPage(page)}
+            onCitationClick={(page) => {
+              setTargetPage(page)
+              setMobileTab('pdf') // Auto-switch to PDF tab on mobile when citation is tapped!
+            }}
           />
         </div>
       </div>

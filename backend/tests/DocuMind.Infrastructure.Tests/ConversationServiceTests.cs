@@ -31,12 +31,13 @@ public class ConversationServiceTests
     public async Task GetOrCreateConversationAsync_NewThread_ShouldPersistAndAssociateWithDocument()
     {
         // Arrange
-        var doc = new Document("Paper.pdf", 2048, "C:\\test\\paper.pdf");
+        var userId = Guid.NewGuid();
+        var doc = new Document("Paper.pdf", 2048, "C:\\test\\paper.pdf", userId: userId);
         _dbContext.Documents.Add(doc);
         await _dbContext.SaveChangesAsync();
 
         // Act
-        var conversation = await _service.GetOrCreateConversationAsync(doc.Id, conversationId: null);
+        var conversation = await _service.GetOrCreateConversationAsync(doc.Id, conversationId: null, userId: userId);
 
         // Assert
         conversation.Should().NotBeNull();
@@ -51,8 +52,9 @@ public class ConversationServiceTests
     public async Task GetOrCreateConversationAsync_CrossDocumentAccess_ShouldThrowDomainException()
     {
         // Arrange: Conversation belongs to DocA, but requested under DocB
-        var docA = new Document("DocA.pdf", 1024, "C:\\test\\a.pdf");
-        var docB = new Document("DocB.pdf", 1024, "C:\\test\\b.pdf");
+        var userId = Guid.NewGuid();
+        var docA = new Document("DocA.pdf", 1024, "C:\\test\\a.pdf", userId: userId);
+        var docB = new Document("DocB.pdf", 1024, "C:\\test\\b.pdf", userId: userId);
         _dbContext.Documents.AddRange(docA, docB);
         await _dbContext.SaveChangesAsync();
 
@@ -61,7 +63,7 @@ public class ConversationServiceTests
         await _dbContext.SaveChangesAsync();
 
         // Act: Try accessing convA with docB.Id
-        var act = async () => await _service.GetOrCreateConversationAsync(docB.Id, convA.Id);
+        var act = async () => await _service.GetOrCreateConversationAsync(docB.Id, convA.Id, userId: userId);
 
         // Assert: Must reject cross-document conversation contamination
         await act.Should().ThrowAsync<DomainException>()
@@ -72,11 +74,12 @@ public class ConversationServiceTests
     public async Task AddMessageAsync_UserAndAssistantMessages_ShouldPreserveChronologicalOrder()
     {
         // Arrange
-        var doc = new Document("Report.pdf", 1024, "C:\\test\\report.pdf");
+        var userId = Guid.NewGuid();
+        var doc = new Document("Report.pdf", 1024, "C:\\test\\report.pdf", userId: userId);
         _dbContext.Documents.Add(doc);
         await _dbContext.SaveChangesAsync();
 
-        var conv = await _service.GetOrCreateConversationAsync(doc.Id, null);
+        var conv = await _service.GetOrCreateConversationAsync(doc.Id, null, userId);
 
         // Act: Add user question and assistant answer
         var userMsg = await _service.AddMessageAsync(conv.Id, MessageRole.User, "What is the budget?");
@@ -85,7 +88,7 @@ public class ConversationServiceTests
         var assistantMsg = await _service.AddMessageAsync(conv.Id, MessageRole.Assistant, "The total budget is $5M [Page 4].", sourcesJson);
 
         // Assert
-        var messages = await _service.GetMessagesAsync(conv.Id);
+        var messages = await _service.GetMessagesAsync(conv.Id, userId);
         messages.Should().HaveCount(2);
 
         messages[0].Role.Should().Be("user");

@@ -54,3 +54,6 @@ TestResults/
 [Tt]est[Rr]esults/
 *.trx
 coverage/
+
+# Local Scratch & Temporary Test Folders
+scratch/

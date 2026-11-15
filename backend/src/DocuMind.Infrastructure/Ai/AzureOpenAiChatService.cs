@@ -78,17 +78,18 @@ public class AzureOpenAiChatService : IChatService
     public async Task<AskQuestionResponse> AskQuestionAsync(
         Guid documentId,
         string question,
+        Guid userId,
         Guid? conversationId = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(question))
             throw new ArgumentException("Question cannot be empty.", nameof(question));
 
-        // 1. Get or create conversation thread
-        var conversation = await _conversationService.GetOrCreateConversationAsync(documentId, conversationId, cancellationToken);
+        // 1. Get or create conversation thread (enforces document ownership for user)
+        var conversation = await _conversationService.GetOrCreateConversationAsync(documentId, conversationId, userId, cancellationToken);
 
-        // 2. Retrieve document context
-        var ragResult = await _ragRetrievalService.RetrieveContextAsync(documentId, question, cancellationToken: cancellationToken);
+        // 2. Retrieve document context (enforces document ownership for user)
+        var ragResult = await _ragRetrievalService.RetrieveContextAsync(documentId, question, userId, cancellationToken: cancellationToken);
 
         // 3. Assemble chat messages including history
         var chatMessages = BuildChatMessages(ragResult.ContextText, conversation.Messages, question);
@@ -134,6 +135,7 @@ public class AzureOpenAiChatService : IChatService
     public async IAsyncEnumerable<SseStreamEvent> StreamQuestionAsync(
         Guid documentId,
         string question,
+        Guid userId,
         Guid? conversationId = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -143,11 +145,11 @@ public class AzureOpenAiChatService : IChatService
             yield break;
         }
 
-        // 1. Get or create conversation thread
-        var conversation = await _conversationService.GetOrCreateConversationAsync(documentId, conversationId, cancellationToken);
+        // 1. Get or create conversation thread (enforces document ownership for user)
+        var conversation = await _conversationService.GetOrCreateConversationAsync(documentId, conversationId, userId, cancellationToken);
 
-        // 2. Retrieve context from Qdrant
-        var ragResult = await _ragRetrievalService.RetrieveContextAsync(documentId, question, cancellationToken: cancellationToken);
+        // 2. Retrieve context from Qdrant (enforces document ownership for user)
+        var ragResult = await _ragRetrievalService.RetrieveContextAsync(documentId, question, userId, cancellationToken: cancellationToken);
 
         // 3. Emit sources event first so frontend can display citations immediately
         yield return SseStreamEvent.CreateSources(ragResult.Citations);

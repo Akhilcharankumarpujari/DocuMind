@@ -55,6 +55,8 @@ public class DocumentConfiguration : IEntityTypeConfiguration<Document>
         builder.Property(d => d.UpdatedAtUtc)
             .HasColumnType("datetime(6)");
 
+        builder.Property(d => d.UserId);
+
         // Indexes for query performance
         builder.HasIndex(d => d.FileName)
             .HasDatabaseName("ix_documents_file_name");
@@ -68,7 +70,15 @@ public class DocumentConfiguration : IEntityTypeConfiguration<Document>
         builder.HasIndex(d => d.FileHash)
             .HasDatabaseName("ix_documents_file_hash");
 
+        builder.HasIndex(d => d.UserId)
+            .HasDatabaseName("ix_documents_user_id");
+
         // Relationships
+        builder.HasOne(d => d.User)
+            .WithMany(u => u.Documents)
+            .HasForeignKey(d => d.UserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasMany(d => d.Chunks)
             .WithOne(c => c.Document)
             .HasForeignKey(c => c.DocumentId)

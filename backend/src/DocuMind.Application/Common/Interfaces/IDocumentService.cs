@@ -3,7 +3,7 @@ using DocuMind.Application.Common.Models;
 namespace DocuMind.Application.Common.Interfaces;
 
 /// <summary>
-/// Orchestrates document uploading, processing triggers, status queries, and deletion.
+/// Orchestrates user-scoped document uploading, processing triggers, status queries, and deletion.
 /// </summary>
 public interface IDocumentService
 {
@@ -12,15 +12,30 @@ public interface IDocumentService
         string fileName,
         long fileSize,
         string contentType,
+        Guid userId,
         CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<DocumentDto>> GetAllDocumentsAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<DocumentDto>> GetAllDocumentsAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
 
-    Task<DocumentDto?> GetDocumentByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<DocumentDto?> GetDocumentByIdAsync(
+        Guid id,
+        Guid userId,
+        CancellationToken cancellationToken = default);
 
-    Task<DocumentStatusDto?> GetDocumentStatusAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<DocumentStatusDto?> GetDocumentStatusAsync(
+        Guid id,
+        Guid userId,
+        CancellationToken cancellationToken = default);
 
-    Task<Stream?> GetDocumentFileAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<Stream?> GetDocumentFileAsync(
+        Guid id,
+        Guid userId,
+        CancellationToken cancellationToken = default);
 
-    Task DeleteDocumentAsync(Guid id, CancellationToken cancellationToken = default);
+    Task DeleteDocumentAsync(
+        Guid id,
+        Guid userId,
+        CancellationToken cancellationToken = default);
 }

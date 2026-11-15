@@ -12,12 +12,17 @@ public static class CorsExtensions
         {
             options.AddPolicy(PolicyName, policy =>
             {
-                policy.WithOrigins(
-                        "http://localhost:5173",
-                        "http://localhost:3000",
-                        "http://127.0.0.1:5173")
-                      .WithMethods("GET", "POST", "DELETE", "OPTIONS")
-                      .WithHeaders("Content-Type", "Accept", "Authorization")
+                policy.SetIsOriginAllowed(origin =>
+                      {
+                          if (string.IsNullOrWhiteSpace(origin)) return false;
+                          if (Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+                          {
+                              return uri.Host is "localhost" or "127.0.0.1" or "0.0.0.0";
+                          }
+                          return false;
+                      })
+                      .AllowAnyMethod()
+                      .AllowAnyHeader()
                       .AllowCredentials();
             });
         });

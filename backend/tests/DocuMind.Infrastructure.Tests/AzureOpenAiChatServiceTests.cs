@@ -23,7 +23,7 @@ public class AzureOpenAiChatServiceTests
         _convMock = new Mock<IConversationService>();
 
         _convMock
-            .Setup(c => c.GetOrCreateConversationAsync(It.IsAny<Guid>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.GetOrCreateConversationAsync(It.IsAny<Guid>(), It.IsAny<Guid?>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ChatConversation(Guid.NewGuid(), "Test Chat"));
 
         _convMock
@@ -43,7 +43,7 @@ public class AzureOpenAiChatServiceTests
         });
 
         _ragMock
-            .Setup(r => r.RetrieveContextAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.RetrieveContextAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new RagRetrievalResult(Guid.NewGuid(), "What is DocuMind?", Array.Empty<SourceCitation>(), ""));
 
         var service = new AzureOpenAiChatService(
@@ -53,7 +53,7 @@ public class AzureOpenAiChatServiceTests
             NullLogger<AzureOpenAiChatService>.Instance);
 
         // Act
-        var response = await service.AskQuestionAsync(Guid.NewGuid(), "What is DocuMind?");
+        var response = await service.AskQuestionAsync(Guid.NewGuid(), "What is DocuMind?", Guid.NewGuid());
 
         // Assert
         response.Should().NotBeNull();
@@ -76,7 +76,7 @@ public class AzureOpenAiChatServiceTests
         };
 
         _ragMock
-            .Setup(r => r.RetrieveContextAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.RetrieveContextAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new RagRetrievalResult(Guid.NewGuid(), "Summarize", citations, "Context on page 1"));
 
         var service = new AzureOpenAiChatService(
@@ -87,7 +87,7 @@ public class AzureOpenAiChatServiceTests
 
         // Act
         var events = new List<SseStreamEvent>();
-        await foreach (var sseEvent in service.StreamQuestionAsync(Guid.NewGuid(), "Summarize"))
+        await foreach (var sseEvent in service.StreamQuestionAsync(Guid.NewGuid(), "Summarize", Guid.NewGuid()))
         {
             events.Add(sseEvent);
         }

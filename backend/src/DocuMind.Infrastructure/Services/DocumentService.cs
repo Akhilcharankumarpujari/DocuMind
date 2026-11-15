@@ -46,9 +46,13 @@ public class DocumentService : IDocumentService
         string fileName,
         long fileSize,
         string contentType,
+        Guid userId,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(fileStream);
+
+        if (userId == Guid.Empty)
+            throw new ArgumentException("User ID must be valid.", nameof(userId));
 
         // 1. Validation
         if (string.IsNullOrWhiteSpace(fileName))
@@ -92,18 +96,19 @@ public class DocumentService : IDocumentService
         // 4. Save file to disk
         var storagePath = await _fileStorage.SaveFileAsync(fileStream, fileName, cancellationToken);
 
-        // 5. Persist document in DB
+        // 5. Persist document in DB with owner UserId
         var document = new Document(
             fileName: fileName,
             fileSizeBytes: fileSize,
             storagePath: storagePath,
             contentType: contentType,
-            fileHash: fileHash);
+            fileHash: fileHash,
+            userId: userId);
 
         _context.Documents.Add(document);
         await _context.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Document {DocumentId} created in MySQL. Initiating ingestion pipeline...", document.Id);
+        _logger.LogInformation("Document {DocumentId} created in MySQL for User {UserId}. Initiating ingestion pipeline...", document.Id, userId);
 
         // 6. Trigger Phase 3 ingestion pipeline (Extract -> Chunk -> Embed -> Qdrant -> MySQL)
         try
@@ -125,31 +130,33 @@ public class DocumentService : IDocumentService
         return MapToDto(refreshed);
     }
 
-    public async Task<IReadOnlyList<DocumentDto>> GetAllDocumentsAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<DocumentDto>> GetAllDocumentsAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var documents = await _context.Documents
             .AsNoTracking()
+            .Where(d => d.UserId == userId)
             .OrderByDescending(d => d.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
         return documents.Select(MapToDto).ToList();
     }
 
-    public async Task<DocumentDto?> GetDocumentByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<DocumentDto?> GetDocumentByIdAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
     {
         var doc = await _context.Documents
             .AsNoTracking()
-            .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+            .FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId, cancellationToken);
 
         return doc == null ? null : MapToDto(doc);
     }
 
-    public async Task<DocumentStatusDto?> GetDocumentStatusAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<DocumentStatusDto?> GetDocumentStatusAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
     {
         var doc = await _context.Documents
             .AsNoTracking()
+            .Where(d => d.Id == id && d.UserId == userId)
             .Select(d => new { d.Id, d.Status, d.PageCount, d.ErrorMessage })
-            .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+            .FirstOrDefaultAsync(cancellationToken);
 
         return doc == null ? null : new DocumentStatusDto(
             doc.Id.ToString(),
@@ -158,11 +165,11 @@ public class DocumentService : IDocumentService
             doc.ErrorMessage);
     }
 
-    public async Task<Stream?> GetDocumentFileAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<Stream?> GetDocumentFileAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
     {
         var doc = await _context.Documents
             .AsNoTracking()
-            .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+            .FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId, cancellationToken);
 
         if (doc == null || string.IsNullOrWhiteSpace(doc.StoragePath))
             return null;
@@ -170,10 +177,10 @@ public class DocumentService : IDocumentService
         return await _fileStorage.GetFileAsync(doc.StoragePath, cancellationToken);
     }
 
-    public async Task DeleteDocumentAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task DeleteDocumentAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
     {
         var document = await _context.Documents
-            .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+            .FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId, cancellationToken);
 
         if (document == null)
             throw new EntityNotFoundException(nameof(Document), id);

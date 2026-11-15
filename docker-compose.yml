@@ -75,6 +75,9 @@ services:
       - AzureOpenAi__ChatDeploymentName=${AZURE_OPENAI_CHAT_DEPLOYMENT:-gpt-4.1-mini}
       - AzureOpenAi__EmbeddingDeploymentName=${AZURE_OPENAI_EMBEDDING_DEPLOYMENT:-text-embedding-3-small}
       - Storage__Path=/app/App_Data/uploads
+      - Jwt__SecretKey=${JWT_SECRET:-DocuMind-UltraSecure-JwtTokenSigningKey-2026-Enterprise!}
+      - Jwt__Issuer=${JWT_ISSUER:-DocuMind.WebApi}
+      - Jwt__Audience=${JWT_AUDIENCE:-DocuMind.Client}
     volumes:
       - documind_uploads:/app/App_Data/uploads
       - documind_logs:/app/logs
@@ -86,6 +89,9 @@ services:
       start_period: 15s
     networks:
       - documind-network
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
 
   # ============================================================================
   # 4. DocuMind React 19 Frontend + Nginx Reverse Proxy Service

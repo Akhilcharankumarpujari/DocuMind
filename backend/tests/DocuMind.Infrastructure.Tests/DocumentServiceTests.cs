@@ -60,7 +60,8 @@ public class DocumentServiceTests
             NullLogger<DocumentService>.Instance);
 
         // Act
-        var result = await service.UploadDocumentAsync(stream, "Sample.pdf", stream.Length, "application/pdf");
+        var testUserId = Guid.NewGuid();
+        var result = await service.UploadDocumentAsync(stream, "Sample.pdf", stream.Length, "application/pdf", testUserId);
 
         // Assert
         result.Should().NotBeNull();
@@ -71,6 +72,7 @@ public class DocumentServiceTests
         docInDb.Should().NotBeNull();
         docInDb!.FileSizeBytes.Should().Be(pdfBytes.Length);
         docInDb.FileHash.Should().NotBeNullOrWhiteSpace();
+        docInDb.UserId.Should().Be(testUserId);
 
         _fileStorageMock.Verify(f => f.SaveFileAsync(It.IsAny<Stream>(), "Sample.pdf", It.IsAny<CancellationToken>()), Times.Once);
         _processingMock.Verify(p => p.ProcessDocumentAsync(docInDb.Id, It.IsAny<Stream>(), It.IsAny<CancellationToken>()), Times.Once);
@@ -92,7 +94,7 @@ public class DocumentServiceTests
             NullLogger<DocumentService>.Instance);
 
         // Act
-        var act = async () => await service.UploadDocumentAsync(stream, "Fake.pdf", stream.Length, "application/pdf");
+        var act = async () => await service.UploadDocumentAsync(stream, "Fake.pdf", stream.Length, "application/pdf", Guid.NewGuid());
 
         // Assert
         await act.Should().ThrowAsync<ArgumentException>()
@@ -115,7 +117,7 @@ public class DocumentServiceTests
             NullLogger<DocumentService>.Instance);
 
         // Act
-        var act = async () => await service.UploadDocumentAsync(stream, "Document.docx", stream.Length, "application/pdf");
+        var act = async () => await service.UploadDocumentAsync(stream, "Document.docx", stream.Length, "application/pdf", Guid.NewGuid());
 
         // Assert
         await act.Should().ThrowAsync<ArgumentException>()
@@ -138,7 +140,7 @@ public class DocumentServiceTests
             NullLogger<DocumentService>.Instance);
 
         // Act
-        var act = async () => await service.UploadDocumentAsync(stream, "Huge.pdf", largeSize, "application/pdf");
+        var act = async () => await service.UploadDocumentAsync(stream, "Huge.pdf", largeSize, "application/pdf", Guid.NewGuid());
 
         // Assert
         await act.Should().ThrowAsync<ArgumentException>()
@@ -149,7 +151,8 @@ public class DocumentServiceTests
     public async Task DeleteDocumentAsync_ShouldDeleteVectorsStorageAndDatabaseRecord()
     {
         // Arrange
-        var doc = new Document("DeleteMe.pdf", 1024, "C:\\storage\\deleteme.pdf");
+        var userId = Guid.NewGuid();
+        var doc = new Document("DeleteMe.pdf", 1024, "C:\\storage\\deleteme.pdf", userId: userId);
         _dbContext.Documents.Add(doc);
         await _dbContext.SaveChangesAsync();
 
@@ -162,7 +165,7 @@ public class DocumentServiceTests
             NullLogger<DocumentService>.Instance);
 
         // Act
-        await service.DeleteDocumentAsync(doc.Id);
+        await service.DeleteDocumentAsync(doc.Id, userId);
 
         // Assert
         var docInDb = await _dbContext.Documents.FirstOrDefaultAsync(d => d.Id == doc.Id);
